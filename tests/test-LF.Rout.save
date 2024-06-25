@@ -1,0 +1,67 @@
+
+R version 4.2.1 (2022-06-23 ucrt) -- "Funny-Looking Kid"
+Copyright (C) 2022 The R Foundation for Statistical Computing
+Platform: x86_64-w64-mingw32/x64 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> library(RPointCloud)
+> data(CLL)
+> view <- cmdscale(daisydist)
+> circular <- angleMeans(view, ripdiag, NULL, clinical)
+> lf <- LoopFeature(circular)
+> round(sort(lf@Kstat), 4)
+                    CatB2M                  Rai.Stage 
+                    0.1140                     0.1264 
+                    CatRAI                     LogB2M 
+                    0.1265                     0.1347 
+Serum.beta.2.microglobulin                 Hemoglobin 
+                    0.1502                     0.2553 
+       Light.chain.subtype            mutation.status 
+                    0.2990                     0.3153 
+                    LogLDH                     stat11 
+                    0.3335                     0.3404 
+     Hypogammaglobulinemia                     Dohner 
+                    0.3603                     0.3658 
+              Zap70Protein                  Serum.LDH 
+                    0.3945                     0.4135 
+                   CatCD38                     Purity 
+                    0.4305                     0.4546 
+                    stat13          White.blood.count 
+                    0.5932                     0.7432 
+                    CatWBC                     stat17 
+                    0.7618                     0.7661 
+                 Platelets                        Sex 
+                    0.7721                     0.7828 
+      Massive.Splenomegaly             Prolymphocytes 
+                    0.7931                     0.8035 
+                   AgeAtDx                     stat12 
+                    0.8472                     0.8696 
+                    LogWBC                       Race 
+                    0.8774                     0.9089 
+                   Matutes 
+                    0.9184 
+> opar <- par(mai = c(0.82, 0.2, 0.82, 1.82))
+> image(lf, main = "Clinical Factors in CLL")
+> par(opar)
+> 
+> plot(lf, "mutation.status")
+> opar <- par(mfcol = c(2,2))
+> plot(lf, c("Serum.beta.2.microglobulin", "Hemoglobin",
++            "Rai.Stage", "LogLDH"))
+> par(opar)
+> 
+> 
+> proc.time()
+   user  system elapsed 
+   2.20    0.50    2.78 

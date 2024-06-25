@@ -1,0 +1,59 @@
+###
+### NAMESPACE
+###
+
+import(methods)
+import(TDA)
+
+importFrom("graphics",
+           "abline", "hist", "legend", "lines", "points",
+           "par", "mtext", "title")
+importFrom("stats",
+           "dexp", "lm", "optimize", "predict", "runif", "sd",
+           "dgamma", "optim","density", "loess", "ecdf", "p.adjust")
+importFrom("grDevices",
+           "colorRampPalette")
+importFrom("Mercator",
+           "downsample", "Mercator", "addVisualization")
+importFrom("ClassDiscovery",
+           "distanceMatrix", "SamplePCA")
+importFrom("splines", "bs")
+importFrom("circlize",
+           "circlize", "colorRamp2",
+           "circos.clear", "circos.par", "circos.heatmap")
+importFrom("rgl",
+           "open3d", "bg3d", "view3d", "axes3d",
+           "spheres3d", "lines3d", "title3d")
+
+exportMethods("plot", "hist", "lines", "points", "image")
+
+## Rewrite Rips diagrams using index-offfstes instead of
+## hard-wired coordinates
+export("disentangle")
+
+## objects for primary plotting routines
+exportClasses("Cycle", "Feature", "LoopCircos")
+export("Cycle", "Feature", "LoopCircos")
+
+## pick out cycles
+export("getCycle", "cycleSupport")
+
+## build circos plot
+export("angleMeans")
+
+## cycle significance by empirical Bayes
+exportClasses("ExpoFit", "EBexpo")
+export("ExpoFit", "EBexpo")
+export("tailHisto", "cutoff")
+
+#export("gammaFit")
+
+exportClasses("Projection")
+export("Projection")
+export("voidPlot", "voidFeature")
+
+exportClasses("LoopFeature")
+export("LoopFeature")
+
+export("LDPC", "takens")
+

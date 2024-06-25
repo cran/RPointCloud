@@ -1,0 +1,354 @@
+---
+title: "RPointCloud: CLL Clinical Data"
+author: "Kevin R. Coombes and Jake Reed"
+data: "`r Sys.Date()`"
+output: 
+  rmarkdown::html_vignette:
+    toc: true
+vignette: >
+  %\VignetteIndexEntry{RPointCloud: CLL Clinical Data}
+  %\VignetteKeywords{TDA, topological data analysis, clinical data, mixed-type data}
+  %\VignetteDepends{RPointCloud,igraph,Polychrome,Mercator,ClassDiscovery,ape}
+  %\VignettePackage{RPointCloud}
+  %\VignetteEngine{knitr::rmarkdown}
+---
+
+```{r opts, echo=FALSE}
+knitr::opts_chunk$set(fig.width=5, fig.height=5)
+oopt <- options(width=96)
+.format <- knitr::opts_knit$get("rmarkdown.pandoc.to")
+.tag <- function(N, cap ) ifelse(.format == "html",
+                                 paste("Figure", N, ":",  cap),
+                                 cap)
+```
+# Introduction
+We want to illustrate the `RPointCloud` package (Version `r packageVersion("RPointCloud")`)
+with a clinical data set. Not surprisingly, we start by loading the package.
+```{r RPointCloud}
+library(RPointCloud)
+```
+We also load several other useful packages (some of which may eventually get incorporated
+into the package requirements).
+```{r libpack}
+suppressMessages( library(Mercator) )
+library(ClassDiscovery)
+library(Polychrome)
+data(Dark24)
+data(Light24)
+suppressMessages( library(igraph) )
+suppressMessages( library("ape") )
+suppressPackageStartupMessages( library(circlize) )
+```
+Now we fetch the sample clinical data set that is included with the package.
+```{r CLL}
+data(CLL)
+ls()
+dim(clinical)
+colnames(clinical)
+```
+The `clinical` object is a numeric matrix containing the clinical data (binary values have
+been converted to 0-1; categorical values to integers). The `daisydist` is a distance matrix
+(stored as a `dist` object). Coombes and colleagues [J Biomed Inform. 2021 Jun;118:103788]
+showed that this is the best way to measure distances between mixed-type clinical data. The
+`ripdiag` object is a "Rips diagram" produced by applying the `TDA` algorithm to the daisy
+distances.
+
+# TDA Built-in Visualizations of the Rips Diagram
+Here are some plots of the `TDA` results using tools from the original package.
+(I am not sure what any of these are really good for.)
+```{r fig01, fig.width = 9, fig.cap = .tag(1, "The Rips barcode diagram from TDA.")}
+diag <- ripdiag[["diagram"]]
+opar <- par(mfrow = c(1,2))
+plot(diag, barcode = TRUE, main = "Barcode")
+plot(diag, main = "Rips Diagram")
+par(opar)
+rm(opar)
+```
+
+# Mercator Visualizations of the Underlying Data and Distance Matrix
+Now we use our `Mercator` package to view the underlying data.
+```{r merc}
+mercury <- Mercator(daisydist, metric = "daisy", method = "hclust", K = 8)
+mercury <- addVisualization(mercury, "mds")
+mercury <- addVisualization(mercury, "tsne")
+mercury <- addVisualization(mercury, "umap")
+mercury <- addVisualization(mercury, "som")
+```
+
+```{r fig02, fig.width = 9, fig.height = 12, fig.cap = .tag(2, "Mercator Visualizations of the distance matrix.")}
+opar <- par(mfrow = c(3,2), cex = 1.1)
+plot(mercury, view = "hclust")
+plot(mercury, view = "mds", main = "Mult-Dimensional Scaling")
+plot(mercury, view = "tsne", main = "t-SNE")
+plot(mercury, view = "umap", main = "UMAP")
+barplot(mercury, main = "Silhouette Width")
+plot(mercury, view = "som", main = "Self-Organizing Maps")
+par(opar)
+rm(opar)
+```
+
+# Dimension Zero
+Here is a picture of the "zero-cycle" data, which can also be used ultimately to cluster
+the points (where each point is a patient). The connected lines are similar to a
+single-linkage clustering structure, showing when individual points are merged together
+as the TDA parameter increases.
+```{r fig03, fig.cap = .tag(3, "Hierarchical connections between zero cycles.")}
+nzero <- sum(diag[, "dimension"] == 0)
+cycles <- ripdiag[["cycleLocation"]][2:nzero]
+W <- mercury@view[["umap"]]$layout
+plot(W, main = "Connected Zero Cycles")
+for (cyc in cycles) {
+  points(W[cyc[1], , drop = FALSE], pch = 16,col = "red")
+  X <- c(W[cyc[1], 1], W[cyc[2],1])
+  Y <- c(W[cyc[1], 2], W[cyc[2],2])
+  lines(X, Y)
+}
+```
+
+# Using iGraph
+We can convert the 0-dimensional cycle structure into a dendrogram, by first passing them
+through the `igraph` package. We start by putting all the zero-cycle data together, which
+can be viewed as an "edge-list" from the `igraph` perspective.
+```{r igraph}
+edges <- t(do.call(cbind, cycles)) # this creates an "edgelist"
+G <- graph_from_edgelist(edges)
+G <- set_vertex_attr(G, "label", value = attr(daisydist, "Labels"))
+```
+Note that we attached the sample names to the graph, obtaining them from the daisy
+distance matrix. Now we use two different algorithms to decide how to layout the graph.
+```{r layouts}
+set.seed(2734)
+Lt <- layout_as_tree(G)
+L <- layout_with_fr(G)
+```
+
+```{r fig04, fig.cap = .tag(4, "Two igraph depictions of the zero cycle structure."), fig.width = 10}
+opar <- par(mfrow = c(1,2), mai = c(0.01, 0.01, 1.02, 0.01))
+plot(G, layout = Lt, main = "As Tree")
+plot(G, layout = L, main = "Fruchterman-Reingold")
+par(opar)
+```
+Note that the Fruchterman-Reingold layout gives the most informative structure.
+
+## Community Structure
+There are a variety of community-finding algorithms that we can apply. (Communities
+in grpah theory are similar to clusters in other machine learning areas of study.)
+"Edge-betweenness" seems  to work best.
+```{r keg}
+keg <- cluster_edge_betweenness(G) # 20
+table(membership(keg)) 
+pal <- Dark24[membership(keg)]
+```
+
+The first line in the next code chunk shows that we did actually produce a tree.
+We explore three different ways ro visualize it
+```{r fig05, fig.width = 6, fig.height = 6, fig.cap = .tag(5, "Community structure, simplified.")}
+is.hierarchical(keg)
+H <- as.hclust(keg)
+H$labels <- attr(daisydist, "Labels")
+K <-  7
+colset <- Light24[cutree(H, k=K)]
+G2 <- set_vertex_attr(G, "color", value = colset)
+e <- 0.01
+opar <- par(mai = c(e, e, e, e))
+plot(G2, layout = L)
+par(opar)
+```
+
+```{r fig06, fig.width=7, fig.height = 7, fig.cap = .tag(6, "Cladogram realization, from the ape package.")}
+P <- as.phylo(H)
+opar <- par(mai = c(0.01, 0.01, 1.0, 0.01))
+plot(P, type = "u", tip.color = colset, cex = 0.8, main = "Ape/Cladogram")
+par(opar)
+rm(opar)
+```
+
+## Visualizing Features
+In any of the "scatter plot views" (e.g., MDS, UMAP, t-SNE) from Mercator, we may want to
+overlay different colors to represent different clinical features.
+```{r views}
+U <- mercury@view[["mds"]]
+V <- mercury@view[["tsne"]]$Y
+W <- mercury@view[["umap"]]$layout
+```
+
+```{r fig07, fig.width = 9, fig.cap = .tag(7, "UMAP visualizations with clinical features.")}
+featMU <- Feature(clinical[,"mutation.status"], "Mutation Status", c("cyan", "red"),
+                  c("Mutated", "Unmutated"))
+featRai <- Feature(clinical[,"CatRAI"], "Rai Stage", c("green", "magenta"), c("High", "Low"))
+opar <- par(mfrow = c(1,2))
+plot(W, main = "UMAP; Mutation Status", xlab = "U1", ylab = "U2")
+points(featMU, W, pch = 16, cex = 1.4)
+plot(W, main = "UMAP; Rai Stage", xlab = "U1", ylab = "U2")
+points(featRai, W, pch = 16, cex = 1.4)
+par(opar)
+rm(opar)
+```
+
+# Significance
+We have a statistical approach to deciding which of the detected cycles are statistically
+significant. Empirically, the persistence of 0-dimensional cycles looks like a gamma
+distribution, while the persistence of higher dimensional cycles looks like an exponential
+distribution. In both cases, we use an empirical Bayes approach, treating the observed
+distribution as a mixture of either gamma or exponential (as appropriate) with an unknown
+distribution contributing to heavier tails.
+```{r persistence}
+persistence <- diag[, "Death"] - diag[, "Birth"]
+```
+
+## Zero-Cycles (Connected Components)
+```{r d0}
+d0 <- persistence[diag[, "dimension"] == 0]
+d0 <- d0[d0 < 1]
+summary(d0)
+mu <- mean(d0)
+nu <- median(d0)
+sigma <- sd(d0)
+shape <- mu^2/sigma^2
+rate <- mu/sigma^2
+xx <- seq(0, 0.23, length = 100)
+yy <- dgamma(xx, shape = shape, rate = rate)
+```
+
+```{r fig08, fig.cap = .tag(8, "Histogram of the duration of zero cycles, with an overlaid gammm distibution.")}
+hist(d0, breaks = 123, freq = FALSE)
+lines(xx, yy, col = "purple", lwd = 2)
+```
+
+## One-Cycles (Loops)
+Now we want to determine if there are significant "loops" in the data, and, if so,
+how many?
+```{r fig09, fig.width=12, fig.cap = .tag(9, "Empirical Bayes detection of significant one-cycles.")}
+d1 <- persistence[diag[, "dimension"] == 1]
+ef <- ExpoFit(d1) # should be close to log(2)/median? 
+eb <- EBexpo(d1, 200)
+opar <- par(mfrow = c(1,3))
+plot(ef)
+hist(eb)
+plot(eb, prior = 0.56)
+par(opar)
+rm(opar)
+sum(d1 > cutoff(0.8, 0.56, eb)) # posterior 80%, prior 0.56
+sum(d1 > 0.065) # post 90%
+which(d1 > 0.047)
+which(d1 > 0.065)
+```
+
+Let's pick out the most persistent 1-cycle.
+```{r}
+cyc1 <- Cycle(ripdiag, 1, 236, "forestgreen")
+cyc1@index
+```
+Each row represents an edge, by listing the IDs of the points at either end of
+the line segment. In this case, there are nine edges that link together to form
+a connected loop (or topological circle). 
+
+```{r fig10, fig.width = 12, fig.cap = .tag(10, "Three views of three one-cycles.")}
+cyc2 <- Cycle(ripdiag, 1, 123, "red")
+cyc3 <- Cycle(ripdiag, 1, 214, "purple")
+
+opar <- par(mfrow = c(1, 3))
+plot(cyc1, W, lwd = 2, pch = 16, col = "gray", xlab = "U1", ylab = "U2", main = "UMAP")
+lines(cyc2, W, lwd=2)
+lines(cyc3, W, lwd=2)
+
+plot(U, pch = 16, col = "gray", main = "MDS")
+lines(cyc1, U, lwd = 2)
+lines(cyc2, U, lwd = 2)
+lines(cyc3, U, lwd = 2)
+
+plot(V, pch = 16, col = "gray", main = "t-SNE")
+lines(cyc1, V, lwd = 2)
+lines(cyc2, V, lwd = 2)
+lines(cyc3, V, lwd = 2)
+par(opar)
+rm(opar)
+```
+
+```{r fig.width = 8, fig.height = 8, fig.cap = .tag(11, "Circos plot of features varying around the most persistent cycle.")}
+poof <- angleMeans(W, ripdiag, cyc1, clinical)
+poof[is.na(poof)] <- 0
+angle.df <- poof[, c("mutation.status", "CatB2M", "CatRAI", "CatCD38",
+                     "Massive.Splenomegaly", "Hypogammaglobulinemia")]
+colorScheme <- list(c(M = "green", U = "magenta"),
+                    c(Hi = "cyan", Lo ="red"),
+                    c(Hi = "blue", Lo = "yellow"),
+                    c(Hi = "#dddddd", Lo = "#111111"),
+                    c(No = "#dddddd", Yes = "brown"),
+                    c(No = "#dddddd", Yes = "purple"))
+annote <- LoopCircos(cyc1, angle.df, colorScheme)
+image(annote)
+```
+
+## Two-Cycles (Voids)
+Now we want to determine if there are significant "voids" (empty interiors of spheres) in
+the data, and, if so, how many?
+```{r fig12, fig.width=12, fig.cap = .tag(12, "Empirical Bayes detection of significant two-cycles.")}
+d2 <- persistence[diag[, "dimension"] == 2]
+ef <- ExpoFit(d2) # should be close to log(2)/median? 
+eb <- EBexpo(d2, 200)
+opar <- par(mfrow = c(1, 3))
+plot(ef)
+hist(eb)
+plot(eb, prior = 0.75)
+par(opar)
+rm(opar)
+sum(d2 > cutoff(0.8, 0.75, eb)) # posterior 80%, prior 0.56
+sum(d2 > cutoff(0.95, 0.75, eb)) # posterior 90%, prior 0.56
+cutoff(0.95, 0.75, eb)
+sum(d2 > 0.032) # post 90%
+which(d2 > 0.034)
+```
+
+```{r as.is = TRUE}
+vd <- Cycle(ripdiag, 2, 95, "purple")
+mds <- cmdscale(daisydist, k = 3)
+voidPlot(vd, mds)
+voidFeature(featMU, mds, radius = 0.011) # need to increase radius when you overlay one sphere on another
+rgl::rglwidget()
+#htmlwidgets::saveWidget(rglwidget(), "mywidget.html")
+```
+
+```{r eval = FALSE, echo = FALSE}
+mixed <- clinical[,"mutation.status"] + 2*clinical[,"CatB2M"] + 4*clinical[,"Matutes"]
+table(mixed)
+scheme <- c("cyan", "#cccccc", "blue", "magenta", "green", "orange", "black", "red")
+terp <- c("MHH", "UHH", "MLH", "ULH", "MHL", "UHL", "MLL", "ULL")
+names(scheme) <- terp
+swatchHue(scheme)
+mixedFeatures <- Feature(mixed, "Mixed", c("white", "black"), terp)
+mixedFeatures@colRamp <-  colorRamp2(0:7, scheme)
+plot(mixedFeatures, W, pch = 16, cex = 1.2)
+ag <- aggregate(mds, list(mixedFeatures@values), mean, na.rm = TRUE)[, 2:4]
+colnames(ag)  <- c("x", "y", "z")
+voidPlot(vd, mds, mixedFeatures)
+voidPlot(vd, mds)
+rgl::spheres3d(ag, color = scheme, radius = 0.05, alpha = 0.5)
+
+
+featMatutes <- Feature(clinical[,"Matutes"], "Matutes Score", c("blue", "orange"), c("Abnormal", "Normal"))
+featB2m <- Feature(clinical[,"CatB2M"], "Beta-2 microglobulin", c("green", "magenta"), c("High", "Low"))
+```
+
+```{r eval = FALSE, echo = FALSE}
+ob <- Projection(vd, mds, mixedFeatures, span = 0.15)
+opar <- par(mfrow = c(1,2))
+plot(ob, cex = 1.5)
+image(ob, col = scheme)
+par(opar)
+rm(opar)
+```
+
+```{r fig13, fig.width = 9, fig.cap = .tag(13, "Planar projection of mutation status around void.")}
+ob <- Projection(vd, mds, featMU, span = 0.2)
+opar <- par(mfrow = c(1,2))
+plot(ob)
+image(ob, col = colorRampPalette(c("cyan", "gray", "red"))(64))
+par(opar)
+rm(opar)
+```
+
+```{r cleanup}
+options(oopt)
+#rm(list = ls())
+```

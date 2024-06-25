@@ -1,0 +1,48 @@
+
+R version 4.2.1 (2022-06-23 ucrt) -- "Funny-Looking Kid"
+Copyright (C) 2022 The R Foundation for Statistical Computing
+Platform: x86_64-w64-mingw32/x64 (64-bit)
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> library(RPointCloud)
+> data(cytof)
+> 
+> fixed <- disentangle(Arip, AML10.node287)
+> identical(fixed, AML10.node287.rips)
+[1] FALSE
+> all.equal(fixed, AML10.node287.rips)
+[1] "Component \"diagram\": Attributes: < Component \"call\": target, current do not match when deparsed >"
+> identical(fixed$diagram, AML10.node287.rips$diagram)
+[1] FALSE
+> X <-fixed$diagram[]
+> Y <- AML10.node287.rips$diagram[]
+> all(X==Y)
+[1] TRUE
+> identical(X, Y)
+[1] FALSE
+> all.equal(X, Y)
+[1] "Attributes: < Component \"call\": target, current do not match when deparsed >"
+> identical(fixed$birthLocation, AML10.node287.rips$birthLocation)
+[1] TRUE
+> identical(fixed$deathLocation, AML10.node287.rips$deathLocation)
+[1] TRUE
+> identical(fixed$cycleLocation, AML10.node287.rips$cycleLocation)
+[1] FALSE
+> all.equal(fixed$cycleLocation, AML10.node287.rips$cycleLocation)
+[1] TRUE
+> 
+> 
+> proc.time()
+   user  system elapsed 
+   4.53    0.54    4.96 

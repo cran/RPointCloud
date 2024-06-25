@@ -1,0 +1,475 @@
+---
+title: "Cytangle: Animations"
+author: "Kevin R. Coombes"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    theme: yeti
+    highlight: kate
+---
+  
+```{r setup, include=FALSE, results="hide"}
+knitr::opts_chunk$set(echo = TRUE)
+```
+```{r mycss, results="asis", echo=FALSE}
+cat('
+<style type="text/css">
+b, strong {color: red; }
+i, em {color: blue; }
+.defn {color: purple; }
+.para {color: purple;
+      font-weight: bold;
+}
+.figure { text-align: center; }
+.caption { font-weight: bold; }
+</style>
+')
+```
+
+# Overview
+We are preparing CyTOF (mass cytometry) data from Greg Behbehani for analysis.
+There are two parallel experiments from the same original set of samples, which
+consists of bone marrow cells from patients
+with acute myeloid leukemia (AML) or from normal controls. Experiment A studies
+cell cycle proteins while experiment B studies B-cell receptor signaling
+proteins. Both experiments use the same set of cell surface markers to identify
+the individual type of white cells present in the data.
+
+The goal of this analysis is to create animations for use in presentations of
+this material. Much of the first part of the code is copied verbatim from report
+`x07-threeway`.
+
+# Getting Started
+Start by defining the default paths.
+```{r paths}
+source("r00-paths.R")
+```
+We will use these packages from the R library.
+```{r libs}
+library(ClassDiscovery)
+library(Polychrome)
+p34 <- palette36.colors(36)[3:36]
+library(TDA)
+```
+Now we load the most basic information about the experiment.
+```{r basics}
+load(file.path(paths$clean, "isotopes.Rda"))
+load(file.path(paths$clean, "groups.Rda"))
+```
+Tube A contains data for the cell cycle proteins
+```{r tubeA}
+load(file.path(paths$clean, "cellCountsA.Rda"))
+```
+And we load scripts implementing a couple of reusable functions.
+```{r scripts}
+source("u01-justOverlay.R")
+source("u02-nodeMeans.R")
+```
+
+# Setting Up the Graph
+Here we get the graph for our standard SPADE plot for this data set.
+```{r setupGraph}
+mst <- read_graph(file.path(paths$spade, "mst.gml"), format="gml")
+mst <- set_vertex_attr(mst, "size", value=3)   # shrink the nodes
+mst <- set_vertex_attr(mst, "label", value="") # hide the labels
+```
+
+## Principal Components Analysis
+Now we load the data for the nodes of interest. Note first that
+these are the nodes that were picked in report `x06`, Second, we
+are getting the cell cycle data from Tube A.
+
+```{r ourNodes}
+load(file.path(paths$scratch, "pickedNodes.Rda"))
+picked <- as.list(picked)
+earlyB <- paste("node", picked$early, ".Rda", sep="")
+matureB <- paste("node", picked$mature, ".Rda", sep="")
+samp <- "CR6"
+```
+
+Here is a principal components analysis of the data from the 
+early B-cells from node `r picked$early`.
+```{r spcaE}
+load(file.path(paths$cluster, "A", samp, earlyB))
+early <- tempMat[, Atarget]
+dim(early) # 216 x 18
+spcaE <- SamplePCA(t(early))
+mycols <- c(early="#FF8C00", mature="blue")
+```
+
+Here is the corresponding analysis for the mature B cells from node
+`r picked$mature`.
+```{r spcaM}
+load(file.path(paths$cluster, "A", samp, matureB))
+mature <- tempMat[, Atarget]
+dim(mature) # 240 x 18
+spcaM <- SamplePCA(t(mature))
+```
+
+And for the joint data set.
+```{r spcaME}
+ME <- rbind(mature, early)
+flag <- rep(c(mycols[2], mycols[1]), times=c(nrow(mature), nrow(early)))
+spcaME <- SamplePCA(t(ME))
+```
+
+## TDA Results
+In report `x06`, we applied TDA to nodes from the CR6 sample.
+Here we load those results for the early B cells.
+```{r fig.width=12, fig.height=6, fig.cap="TDA results for early B cells."}
+load(file.path(paths$scratch, "Early", "CR6-Node-108-rips.Rda"))
+ripsE <- rips
+rm(rips)
+```
+
+We also load the TDA resulots for mature B cells.
+```{r fig.width=12, fig.height=6, fig.cap="TDA results for mature B cells."}
+load(file.path(paths$scratch, "Mature", "CR6-Node-120-rips.Rda"))
+ripsM <- rips
+rm(rips)
+```
+
+Now we compute/get the TDA (rips) results for the combined data set.
+```{r combinedRips}
+f <- file.path(paths$scratch, "ripsme.Rda")
+if(file.exists(f)) {
+  load(f)
+} else {
+  ripsme <- ripsDiag(usable, 1, 5, library="Dionysus", location=TRUE)
+  save(ripsme, file = f)
+}
+rm(f)
+```
+
+# Animation
+We need to load (after installing, if necessary) the `animation` R package,
+```{r anime}
+if (!require("animation")) {
+  install.packages("animation")
+  library(animation)
+}
+```
+
+## Illustrating TDA
+Now we are going to prepare the first animation, which illustrates the TDA process by
+letting the observed data points expand. To make things simewhat clearer, we define a
+function that builds the plot as a function of the charactyer expansion factor.
+```{r showme}
+showme <- function(CEX) {
+  plot(spcaE@scores[,1], spcaE@scores[,2], col=mycols[1],
+       pch=16, cex=CEX, cex.axis=1, cex.lab=1, cex.main=2,
+       main="Early B Cells",
+      xlab="Component 1", ylab="Component 2")
+  cyc <- ripsE$cycleLocation
+  rd <- ripsE[["diagram"]]
+  duration <- rd[,3] - rd[,2]
+  for (j in 1:length(cyc)) {
+    jj <- j %% 34
+    jj <- ifelse(jj==0, 34, jj)
+    c19 <- cyc[[j]]
+    if (prod(dim(c19)) == 0) next
+    colj <- ifelse(duration[j] > 0.6, "black", "gray60")
+    if (duration[j] < 0.6) next
+    for(i in 1:dim(c19)[1]) {
+      lines(c19[i,,1],c19[i,,2],col=colj, lwd=4)
+    }
+  }
+}
+```
+To illustrate, we show one of the frames of the eventual animation.
+```{r fig.width=7, fig.height=7, fig.cap = "Early B cells in PC dimension 2."}
+showme(3.5)
+```
+
+Next, we set up a directory to store the animation.
+```{r animeDir}
+animeDir <- file.path(paths$extra, "ANIME")
+if (!file.exists(animeDir)) dir.create(animeDir)
+```
+
+Now we actually create the animation. This is tricky/annoying, since the `saveHTML`
+function only works in the current directory
+```{r}
+home <- getwd()
+setwd(animeDir)
+temp <- seq(1, 11, length=128)
+rs <- c(temp, rev(temp))
+
+saveHTML({for(R in 1:length(rs)) {
+            showme(rs[R])
+            ani.pause()
+          }},
+         img.name = "tda", autoplay = FALSE,
+         interval = 0.04, imgdir = "ani-tda", htmlfile="01-early-tda.html",
+         ani.height=600, ani.width = 600,
+         title="TDA In Action",
+         description="Expanding points to find loops.")
+setwd(home)
+```
+
+
+## Illustrating TDA with pooled early and mature B cell data.
+
+We define the function to produce plots for the pooled data.
+```{r showme2}
+showme2 <- function(CEX) {
+  plot(spcaME@scores[,1], spcaME@scores[,2], col=flag,
+       pch=16, cex=CEX, cex.axis=1, cex.lab=1, cex.main=2,
+       main="B Cells",
+       xlab="Component 1", ylab="Component 2") # use for grant?
+  legend("bottomleft", c("Mature", "Early"), pch=16, col=c(mycols[2], mycols[1]))
+  cyc <- ripsme$cycleLocation
+  rd <- ripsme[["diagram"]]
+  duration <- rd[,3] - rd[,2]
+  for (j in 1:length(cyc)) {
+    jj <- j %% 34
+    jj <- ifelse(jj==0, 34, jj)
+    c19 <- cyc[[j]]
+    if (prod(dim(c19)) == 0) next
+    colj <- ifelse(duration[j] > 0.6, "forestgreen", "gray60")
+    if (duration[j] < 0.6) next
+    for(i in 1:dim(c19)[1]) {
+      lines(c19[i,,1],c19[i,,2],col=colj, lwd=4)
+    }
+  }
+}
+```
+Here is an illustrative frame.
+```{r fig.width=7, fig.height=7, fig.cap="Illustrating TDA with pooled data."}
+showme2(3.5)
+```
+
+Then we create the animation
+```{r reanim}
+home <- getwd()
+setwd(animeDir)
+saveHTML({for(R in 1:length(rs)) {
+            showme2(rs[R])
+            ani.pause()
+          }},
+         img.name = "tda2", autoplay = FALSE,
+         interval = 0.04, imgdir = "ani-tda2", htmlfile="02-early-mature-tda.html",
+         ani.height=600, ani.width = 600,
+         title="TDA In Action, Again",
+         description="Expanding points to find cell cycle.")
+setwd(home)
+```
+
+
+# Expression
+In this section, we wnat to plot te expression patterns of the cell cycle data on top
+of the TDA plot. Here is a function to generate one such plot.
+```{r}
+showme3 <- function(pal, H, CHOP = 4) {
+  X <- scale(ME[, H])
+  M <- max(abs(X))
+  if (M > CHOP) {
+    M <- CHOP
+    X[X > CHOP] <- CHOP
+    X[X < -CHOP] <- -CHOP
+  }
+  XC <- pal[cut(X, breaks = seq(-M, M, length=31), 
+                labels=FALSE, include.lowest=TRUE)]
+  opar <- par(c("mfrow","mai"))
+  layout(matrix(1:2, nrow=1), widths = c(6, 1), heights = 1)
+  on.exit(par(opar))
+  plot(spcaME@scores[,1], spcaME@scores[,2], col=XC,
+       pch=16, cex=1.5, cex.axis=1, cex.lab=1, cex.main=2,
+       main=paste("B Cells,", H),
+       xlab="Component 1", ylab="Component 2")
+  cyc <- ripsme$cycleLocation
+  rd <- ripsme[["diagram"]]
+  duration <- rd[,3] - rd[,2]
+  for (j in 1:length(cyc)) {
+    jj <- j %% 34
+    jj <- ifelse(jj==0, 34, jj)
+    c19 <- cyc[[j]]
+    if (prod(dim(c19)) == 0) next
+    colj <- ifelse(duration[j] > 0.6, p34[1], "gray60")
+    if (duration[j] < 0.6) next
+    for(i in 1:dim(c19)[1]) {
+      lines(c19[i,,1],c19[i,,2],col=colj, lwd=4)
+    }
+  }
+  par(mai=c(1.5, 0.75, 1.5, 0.1))
+  image(1, seq(-M, M, length=31), matrix(1:31, nrow=1), col = pal,
+        xaxt = "n", xlab="", ylab="Standardized Units")
+  par(opar)
+}
+```
+And here is an example:
+```{r fig.width=7, fig.height=6, fig.cap="CD99 expression in early and mature B cells."}
+pal <- colorRampPalette(c("cyan", "gray70", "magenta"))(31)
+showme3(pal, "CD99")
+```
+
+```{r echo=FALSE, eval = FALSE}
+foo <- as.matrix(dist(ME))
+dim(foo)
+goo <- apply(foo, 1, sort)
+roo <- apply(foo, 1, order)
+plot(c(1, 456), c(0, 14.5), type = "n")
+for (i in 1:ncol(goo)) lines(goo[,i])
+abline(v = 45, col = "red")
+abline(h = 4.5, col = "orange")
+dang <- sapply(1:nrow(foo), function(I) {
+  v <- roo[1:45, I]
+  apply(ME[v,], 2, mean)
+})
+dong <- sapply(1:nrow(foo), function(I) {
+  v <- which(foo[I,] < 4.5)
+  apply(ME[v,], 2, mean)
+})
+
+# bimodals: PCNA, KI-67, Cyclin B, pRb, CD99, p56, DNA-2
+opar <- par(mfrow = c(6,3), mai = c(0.2, 0.2, 0.82, 0.2))
+for (I in 1:nrow(dang)) {
+  hist(dang[I,], breaks = 35, main = rownames(dang)[I])
+}
+par(opar)
+
+
+mx <- apply(ME, 1, which.max)
+mn <- apply(ME, 1, which.min)
+
+ME2 <- ME[order(mx, mn), ]
+image(1:456, 1:18, ME2)
+plot(apply(ME2,2, mean), type = "b")
+```
+```{r, echo=FALSE, eval = FALSE}
+showme3(pal, "PCNA")
+showme3(pal, "pRb")
+showme3(pal, "pS6")
+showme3(pal, "DNA-2")
+```
+
+```{r}
+fdir <- file.path(paths$extra, "loopexpr")
+if (!file.exists(fdir)) dir.create(fdir)
+for (H in colnames(ME)) {
+  png(file.path(fdir, paste(H, ".png", sep="")), width=700, height=600, bg="white")
+  showme3(pal, H)
+  dev.off()
+}
+```
+
+# 3D Animations
+We would also like to make some 3D animations. We can't do this directly in `saveHTML` from
+the  `animation` package, since it doesn't know to use the function `rgl.snapshot` to save
+PNG files. So, we can simlpy create all the frames, and then manually edit te appropriate
+HTML and JavaScript files that go along with it. (I hate that non-reproducible step.)
+
+Of course, we need another R package.
+```{r rgl}
+if (!require("rgl")) {
+  install.pacakges("rgl")
+  library(rgl)
+}
+```
+
+We are going to start with an animation that shows moving circular sections of a sphere.
+```{r circOnSphere}
+foo <- diag(3)
+foo
+po <- ellipse3d(foo, subdivide=4, t = 1) # smooth sphere of rad1us 1
+
+sdir <- file.path(animeDir, "circOnSphere")
+if (!file.exists(sdir)) dir.create(sdir)
+temp <- seq(-1, 1, length=256)
+np <- 1000
+theta <- seq(0, 2*pi, length = np)
+for(I in 1:length(temp)) {
+  x0 <- temp[I]
+  x <- rep(x0, np)
+  R <- sqrt(1 - x0^2)
+  y <- R*cos(theta)
+  z <- R*sin(theta)
+  open3d(windowRect = 50 + c(0, 0, 600, 600))
+  plot3d(po, axes=FALSE, alpha=0.3, col = "gray")
+  points3d(x, y, z)
+  rgl.snapshot(file.path(sdir, paste("cons", I, ".png", sep="")))
+  rgl.close()
+}
+```
+
+Now we make a hypersphere (using time as the extra dimension).
+```{r, spheres}
+library(colorspace)
+PAL <- rainbow_hcl(128, c=90)
+pal <- c(PAL, rev(PAL))
+temp <- seq(1e-5, 1, length = 128)
+rads <- c(temp, rev(temp))
+
+foo <- diag(3)
+po <- ellipse3d(foo, subdivide=4, t = 1) # smooth sphere of rad1us 1
+
+sdir <- file.path(animeDir, "spheres")
+if (!file.exists(sdir)) dir.create(sdir)
+for(I in 1:length(rads)) {
+  open3d(windowRect = 50 + c(0, 0, 600, 600))
+  plot3d(po, axes=FALSE, alpha=0, col = "white")
+  foo <- diag(3)*rads[I]
+  eep <- ellipse3d(foo, subdivide=4, t = 1) # smooth sphere
+  plot3d(eep, col = pal[I], alpha = 0.3, add = TRUE)
+  rgl.snapshot(file.path(sdir, paste("cons", I, ".png", sep="")))
+  rgl.close()
+}
+```
+
+```{r}
+open3d(windowRect = 50 + c(0, 0, 600, 600))
+plot3d(po, axes=FALSE, alpha=0, col = "white")
+for(I in seq(16, 128, 16)) {
+  foo <- diag(3)*rads[I]
+  eep <- ellipse3d(foo, subdivide=4, t = 1) # smooth sphere
+  plot3d(eep, col = pal[I], alpha = (136-I)/128, add = TRUE)
+}
+rgl.snapshot(file.path(paths$extra, "gumball.png"))
+rgl.close()
+```
+
+## Circles make a sphere
+Finally, we make a video f expanding and contracting circles which serves as a time-dependent
+model of a plain old sphere.
+
+```{r circles, fig.width=6, fig.height=6, fig.cap="A circle."}
+pc <- function(R, ...) {
+  theta <- seq(0, 2*pi, length=600)
+  x <- R*cos(theta)
+  y <- R*sin(theta)
+  plot(x, y, xlim=c(-2, 2), ylim=c(-2,2), ...)
+}
+
+pc(1, type="l", lwd=3)
+```
+
+```{r anicirc}
+temp <- seq(0, 1.8, length=64)
+rs <- c(temp, rev(temp))
+
+home <- getwd()
+setwd(animeDir)
+saveHTML({for(R in 1:length(rs)) {
+            pc(rs[R], type = "l", lwd = 3)
+            ani.pause()
+          }},
+         img.name = "circ", autoplay = FALSE,
+         interval = 0.04, imgdir = "circdir", htmlfile="04-circ.html",
+         ani.height=600, ani.width = 600,
+         title="Blip Circle",
+         description="Growing and shrinking circle.")
+setwd(home)
+```
+
+
+# Appendix
+These computations were performed in the following environment:
+```{r si}
+sessionInfo()
+```
+and in the following directory:
+```{r where}
+getwd()
+```
+

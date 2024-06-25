@@ -1,0 +1,457 @@
+---
+title: "Cytangle: Circos Plots"
+author: "Kevin R. Coombes"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    theme: yeti
+    highlight: kate
+---
+  
+```{r setup, include=FALSE, results="hide"}
+knitr::opts_chunk$set(fig.width=8, fig.height=5)
+options(width=96)
+.format <- knitr::opts_knit$get("rmarkdown.pandoc.to")
+.tag <- function(N, cap ) ifelse(.format == "html",
+                                 paste("Figure", N, ":",  cap),
+                                 cap)
+.ntag <- function(start, caps) {
+  if(.format == "html") {
+    L <- length(caps)
+    val <- paste("Figure ", start + (1:L), ": ", caps, sep = "")
+  } else {
+    val <- caps
+  }
+  val
+}
+```
+```{r mycss, results="asis", echo=FALSE}
+cat('
+<style type="text/css">
+b, strong {color: red; }
+i, em {color: blue; }
+.defn {color: purple; }
+.para {color: purple;
+      font-weight: bold;
+}
+.figure { text-align: center; }
+.caption { font-weight: bold; }
+</style>
+')
+```
+
+# Overview
+We are preparing CyTOF (mass cytometry) data from Greg Behbehani for analysis.
+There are two parallel experiments from the same original set of samples, which
+consists of bone marrow cells from patients with acute myeloid leukemia (AML)
+or from normal controls. Experiment A studies cell cycle proteins while
+experiment B studies B-cell receptor signaling proteins. Both experiments use
+the same set of cell surface markers to identify the individual type of white
+cells present in the data.
+
+The goal of this report is to examine and plot the node-sample combinations
+with significant "loops" (circles) or "voids" (topologically spherical holes).
+
+# Getting Started
+## Code
+Start by defining the default paths.
+```{r paths}
+source("r00-paths.R")
+### set default paths
+ripDir <- file.path(paths$scratch, "rip")
+rip1Dir <- file.path(paths$scratch, "rip1d")
+rip3Dir <- file.path(paths$scratch, "rip3d")
+```
+Load some useful packages.
+```{r libs}
+library(Polychrome)
+p34 <- palette36.colors(36)[3:36]
+suppressMessages( library(ClassDiscovery) )
+suppressMessages( library(TDA) )            # to interpret rips diagrams
+suppressMessages( library(circlize) )       # for circos-like plots
+suppressMessages( library(ComplexHeatmap) ) # for 'Legend: and 'draw"
+
+library(movMF)
+```
+Read the source code for a few utility functions.
+```{r util}
+suppressMessages( source("u01-justOverlay.R") ) # defines 'lay', 'ucoords', and 'overlay'
+```
+
+## Data
+Now we load some generic data structures.
+```{r basics}
+load(file.path(paths$clean, "groups.Rda")) # defines 'groups'
+summary(groups)
+load(file.path(paths$clean, "isotopes.Rda")) # defines 'AMat', 'onA', 'Atarget', and 'clusmark'
+dim(AMat)
+head(onA)
+Atarget
+clusmark
+```
+
+Finally, load the collated results of the TDA.
+```{r collate}
+load(file.path(paths$scratch, "recollate.Rda")) # defines collate
+collate$Dimension <- factor(collate$Dimension)
+summary(collate)
+```
+
+# Loops
+Loops or voids that we found to be interesting (because the persistence = duration is
+sufficiently long) are identified by the tube (A or B), the node (a number from 1 to 483),
+and the sample name. We can use that information to recover the pre-computed rips diagram.
+Here is an example.
+```{r example}
+samname <- "CR6"
+tube <- "A"
+node <- 108
+ripsfile <- paste("tube", tube, "-", samname, "-node", node, "-rips.Rda", sep = "")
+load(file.path(rip1Dir, "A", ripsfile)) # defines 'rips' and 'keeper'
+names(rips)
+```
+
+The actual data for individual cells at this node for this sample can also be loaded.
+```{r nodeData}
+nodefile <- paste("node", node, ".Rda", sep='')
+load(file.path(paths$cluster, "A", samname, nodefile)) # defines 'tempmat'
+dim(tempMat)
+```
+
+Here is a PCA plot of the target data for this tube, node, and sample )**Figure 1**).
+```{r fig01, fig.width=6, fig.height=6, fig.cap = .tag(1, "Principal components plot of cells at node 108 in tube A for sample CR6.")}
+M <- tempMat[, Atarget]
+spcaM <- SamplePCA(t(M))
+usable <- spcaM@scores[, 1:2]
+plot(usable, pch = 16, col = "gray")
+```
+
+We can also extract and display the longest cycle from the TDA rips analysis. In **Figure 2**,
+the points "supporting" the cycle are shown in blue, and connected by red edges. The larger
+orange point marks the centoid of the cycle's support.
+```{r fig02, fig.width=6, fig.height=6, fig.cap = .tag(2, "Longest 1D cycle at node 108 in tube A for sample CR6.")}
+delta <- 0.5
+rd <- rips[["diagram"]]
+oneD <- rd[,1] == 1 # first col of rd is 'dimension'
+cyc <- rips$cycleLocation[oneD]
+duration <- (rd[,3] - rd[,2])[oneD]
+J <- which.max(duration)
+c19 <- cyc[[J]]
+colj <- p34[1]
+X <- as.vector(c19[,,1])
+Y <- as.vector(c19[,,2])
+XY <- as.data.frame(unique(cbind(X, Y)))
+centroid <- apply(XY, 2, mean)
+
+plot(usable, pch = 16, col = "gray")
+for(i in 1:dim(c19)[1]) {
+  lines(c19[i,,1],c19[i,,2], col=colj, lwd=2)
+}
+points(XY, col = p34[4], pch = 16)
+points(centroid[1], centroid[2], col = p34[5], pch = 16, cex = 1.5)
+
+```
+
+## Angles From the Centroid
+The next step is to compute the "angle" part of the position of each cell in the PCA plot
+with respect to the centroid. First, here is the function that performs that computation.
+```{r getAngle}
+getAngles <- function(dset, centroid) {
+  recentered <- sweep(dset, 2, centroid, "-") # centroid now at (0,0)
+  atan2(recentered[,1], recentered[,2])
+}
+```
+
+Now we can actually compute the angles (and foolishly convert them back from radians to degrees).
+```{r degrees}
+radians <- getAngles(usable, centroid)
+degrees <- radians * 180/pi
+```
+We are also going to compute the average expression of each protein over sectors of width
+20 degrees, centered at 15 degree intervals around the circle. Note that we have "doubled"
+the period that we follow the data, which will later make it easier to fit a smooth curve
+to the data without worrying about artifactual edge effects. (It also makes it easier to
+deal with the special case of overlapping the position at 0 degrees.)
+```{r GM}
+deg <- c(degrees, degrees + 360)
+od <- order(deg)
+deg <- deg[od]
+magic <- rbind(M, M)[od,]
+GM <- t(sapply(seq(0, 345, 15), function(center) {
+  lb <- center - 10
+  ub <- center + 10
+  set <- subset(magic, deg > lb & deg < ub)
+  m.gene <- apply(set, 2, mean)
+  m.gene
+}))
+rownames(GM) <- seq(0, 345, 15)
+dim(GM)
+```
+
+## Looking at Individual Proteins
+We uswe the next chunk of code to prepare a standard set of four plots for each
+of the protein markers in the data set.
+```{r prepGene}
+# Create color list
+col.ls <- c("#0000ff", "#ff0000", "#00ff00", "#ffaa00", "#ff00ff", "#00ffff")
+
+prepGene <- function(gene, I) {
+  G <- c(M[, gene], M[, gene])
+  G <- G[od]
+  lo <- loess(G ~ deg, span = 0.25)
+  ox <- order(lo$x)
+
+  col <- colorRamp2(c(min(G), max(G)), c("white", col.ls[2]))
+  ptcol <- col(G)
+  
+  crackle <- (G - min(G) + 0.01)[1:(length(G)/2)]
+  probs <- crackle/sum(crackle)
+  set.seed(44188)
+  N <- 40000
+  folderol <- sample(1:length(radians), N, replace = TRUE, prob = probs)
+  weighted <- degrees[folderol]
+  dd <- density(weighted)
+  xy <- as.matrix(usable[folderol, 1:2])
+  ng <- 6
+  fit <- try(lapply(1:ng, function(K) {
+    movMF(xy, k = K)
+  }), silent = TRUE)
+  if (inherits(fit, "try-error")) fit <- NULL
+  list(gene = gene, G = G, lo = lo, ox = ox, 
+       ptcol = ptcol, weighted = weighted, dd = dd,
+       xy = xy, fit = fit)
+}
+
+showGene <- function(object) {
+  pal <- p34[c(1, 15, 4, 5, 24, 9)]
+  opar <- par(mfrow = c(2,2))
+  on.exit(par(opar))
+  attach(object)
+  on.exit(detach())
+  plot(deg, G, main = gene)
+  lines(lo$x[ox], lo$fitted[ox], col = "red", lwd = 2)
+  lines(seq(0, 345, 15), GM[, gene], col = "purple", lwd = 2)
+  abline(v = c(0, 360))
+  
+  plot(usable, col = ptcol, pch = 16, main = gene)
+  for(i in 1:dim(c19)[1]) {
+    lines(c19[i,,1],c19[i,,2], col="black", lwd=2)
+  }
+  points(centroid[1], centroid[2], col = "black", pch = 16, cex = 1.5)
+  
+  hist(weighted, breaks = 55, prob = TRUE, main = "Weighted Samples")
+  lines(dd, col = "red", lwd = 2)
+  
+  plot(xy, col = "gray", pch = 16, main = paste("Local Peaks of", gene))
+  for (I in 1:length(fit)) points(fit[[I]]$theta, pch = 16, cex = 1.5, col = pal[I])
+}
+```
+
+Now we present a plethora of plots.
+```{r fig03, fig.width = 9, fig.height = 9, fig.cap = .ntag(3, paste(colnames(GM), "plots."))}
+if (!interactive()) {
+  ignore <- sapply(colnames(GM), function(protein) {
+    pg <- prepGene(protein)
+    showGene(pg)
+  })
+}
+par(mfrow = c(1,1))
+```
+
+# Circos heatmap
+Here we select the six most interesting (maybe) proteins to make a circos plot of
+expression around the loop-cycle.
+```{r fig22, fig.width=8, fig.height=8, fig.cap = .tag(22, "Circos plot.")}
+angle.df <- GM[, pal <- c("Ki-67", "PCNA", "CycB", "pRb", "CycA", "CD99")]
+opar <- par(cex = 1.5, mai = c(0, 0, 0, 0))
+circos.clear()
+circos.par(track.height = 0.08, 
+           start.degree = 90)
+# For loop for each track/gene
+for(i in 1:length(angle.df[1,])) {
+  # If statement to add angle designations on outside of 
+  # first track only
+  if(i == 1) {
+    data <- as.data.frame(angle.df[,i])
+    col <- colorRamp2(c(min(data), max(data)), c("white", col.ls[i]))
+    circos.heatmap(data, rownames.side = "outside", 
+                   cluster = FALSE, col = col, rownames.cex = 1)
+  } else {
+    data <- as.data.frame(angle.df[,i])
+    col <- colorRamp2(c(min(data), max(data)), c("white", col.ls[i]))
+    circos.heatmap(data, cluster = FALSE, col = col)
+  }
+}
+# Generate legend
+lgd <- Legend(at = colnames(angle.df), title = "Genes", type = "points",
+              title_position = "topleft", legend_gp = gpar(col = col.ls))
+# Draw legend
+draw(lgd, x = unit(0.97, "npc"), y = unit(0.05, "npc"), just = c("right", "bottom"))
+par(opar)
+```
+
+# Voids
+Now we extract the subset (from `collate`) that contains node-sample pairs
+with significant voids. The cutoff is based on work presented in the
+previous report (`x10`).
+```{r siggVoid}
+sigVoid <- collate[collate$Dimension == 2 & 
+                     collate$Duration > 0.33,]
+sigVoid$Sample <- factor(sigVoid$Sample)
+sigVoid$Node <- factor(sigVoid$Node)
+summary(sigVoid)
+```
+
+These auxiliary functions help get the lower-level data that we need to display some of the results.
+```{r getFuncs}
+get3D <- function(tube, S, N) {
+ fname <- paste(paste("tube", tube, sep=''), S, N, "rips.Rda", sep='-')
+  fp <- file.path(ripDir, tube, fname)
+  cat(fp, "\n", file=stderr())
+  load(fp)
+
+  load(file.path(paths$clusters, tube, S, paste(N, "Rda", sep='.')))
+  M <- tempMat[, get(paste(tube, "target", sep=''))]
+  spca <- SamplePCA(t(M))
+  usable <- spca@scores[, 1:3]
+  usable
+}
+getCycle <- function(tube, S, N) {
+  fname <- paste(paste("tube", tube, sep=''), S, N, "rips.Rda", sep='-')
+  fp <- file.path(ripDir, tube, fname)
+  cat(fp, "\n", file=stderr())
+  load(fp)
+  RD <- rips$diagram
+  dure <- RD[,3] - RD[,2]
+  dimn <- RD[,1]
+  CY <- rips$cycleLocation
+  ptr <- which(dure > 0.25 & dimn == 2)
+  if (length(ptr > 1)) {
+    i <- which.max(dure[ptr])
+    ptr <- ptr[i]
+  }
+  dure[ptr]
+  dimn[ptr]
+  cyc <- CY[[ptr]]
+  colnames(cyc) <- c("X", "Y", "Z")
+  cyc
+}
+```
+
+As an example, we use the first item inthe list of significant voids.
+```{r}
+I = 1
+sigVoid[I,]
+b <- sigVoid[I, "Tube"]
+s <- sigVoid[I, "Sample"]
+n <- sigVoid[I, "Node"]
+
+ripsfile <- paste("tube", b, "-", s, "-", n, "-rips.Rda", sep = "")
+load(file.path(ripDir, "A", ripsfile)) # defines 'rips' and 'keeper'
+names(rips)
+
+nodefile <- paste(n, ".Rda", sep='')
+load(file.path(paths$cluster, "A", s, nodefile)) # defines 'tempmat'
+dim(tempMat)
+
+usable <- get3D(b, s, n)
+cyc <- getCycle(b, s, n)
+centroid <- apply(cyc, 2, mean)
+recent <- sweep(usable, 2, centroid, "-")
+```
+
+In **Figure 23**, we show the expression levels of `pRb` as a function of spherical
+coordinates where the centroid of the void support is taken as the center of an actual 
+sphere.
+```{r fig23, fig.width=9, fig.height=4.5, fig.cap = .tag(23, "Levels of pRb in spherical coordinates.")}
+r <- sqrt(apply(recent^2, 1, sum))
+phi <- atan2(recent[,2], recent[,1])
+psi <- acos(recent[,3]/r)
+E <- tempMat[, "pRb"]
+col <- colorRamp2(c(min(E), max(E)), c("white", col.ls[1]))
+ptcol <- col(E)
+wicked <- loess(E ~ phi + psi, span = 0.3)
+phi1 <-  seq(-pi, pi, length = 51)
+psi1 <- seq(0, pi, length = 26)
+daft <- data.frame(phi = rep(phi1, times = 26),
+                   psi = rep(psi1, each = 51))
+eek <- matrix(predict(wicked, daft), ncol = 26)
+pal <- viridisLite::viridis(64)
+
+opar <- par(mfrow =c(1,2))
+plot(phi, psi, col = ptcol, pch = 16)
+image(phi1, psi1, eek, col = pal)
+par(opar)
+```
+
+Next, we want to unwrap the longitude coordinates twice, so we can get a smoother
+fit to the line where we sliced opened the sphere (**Figure 24**).
+```{r fig24, fig.width=9, fig.height=4.5, fig.cap = .tag(24, "Doubly wrapped.")}
+phi2 <- c(phi, phi + 2*pi)
+psi2 <- c(psi, psi)
+E2 <- c(E, E)
+wicked2 <- loess(E2 ~ phi2 + psi2, span = 0.2) # fits the duplicated model
+phi3 <-  seq(-pi, 3*pi, length = 101) # full horizontal; coordinates
+psi3 <- seq(0, pi, length = 26)      # 
+daft <- data.frame(phi2 = rep(phi3, times = 26),
+                   psi2 = rep(psi3, each = 101))
+eek2 <- matrix(P <- predict(wicked2, daft), ncol = 26, byrow = FALSE)
+
+opar <- par(mfrow = c(1,2))
+plot(phi2, psi2, pch = 16, col = c(ptcol, ptcol))
+image(phi3, psi3, eek2, col = pal) 
+par(opar)
+```
+
+
+In **Figure 25**, we extract the middle  portion of that image.
+```{r fig25, fig.width=6, fig.height=6, fig.cap = .tag(25, "Extracted center.")}
+W <- phi3 >= 0 & phi3 <= 2*pi
+image(phi3[W], psi3, eek2[W,], col = pal, zlim = range(eek2, na.rm = TRUE)) 
+```
+
+```{r fig26plus, fig.width=8, fig.height = 12, fig.cap = "Spherical protein expression patterns."}
+exprs <- list()
+opar <- par(mfrow = c(3, 2))
+for (protein in colnames(GM)) {
+  E <- tempMat[, protein]
+  E2 <- c(E, E)
+  wicked2 <- loess(E2 ~ phi2 + psi2, span = 0.2) # fits the duplicated model
+  phi3 <-  seq(-pi, 3*pi, length = 101) # full horizontal; coordinates
+  psi3 <- seq(0, pi, length = 26)      # 
+  daft <- data.frame(phi2 = rep(phi3, times = 26),
+                     psi2 = rep(psi3, each = 101))
+  eek2 <- matrix(P <- predict(wicked2, daft), ncol = 26, byrow = FALSE)
+  exprs[[protein]] <- eek2
+  image(phi3[W], psi3, eek2[W,], col = pal, zlim = range(eek2, na.rm = TRUE), main = protein) 
+}
+par(opar)
+```
+
+```{r}
+scaled <- lapply(exprs, function(M) {
+  X <- max(M, na.rm = TRUE)
+  N <- min(M, na.rm = TRUE)
+  (M-N)/(X-N)
+})
+library(abind)
+goop <- abind(scaled, along=3)
+mex <- apply(goop, 1:2, which.max)
+range(mex, na.rm = TRUE)
+opar <- par(mfrow = c(1,2))
+plot(phi2, psi2, pch = 16, col = "gray60", ylim = c(0, pi), xlim = c(0, 2*pi))
+image(phi3, psi3, mex, col = pal, ylim = c(0, pi), xlim = c(0, 2*pi))
+par(opar)
+```
+
+# Appendix
+These computations were performed in the following environment:
+```{r si}
+sessionInfo()
+```
+and in the following directory:
+```{r where}
+getwd()
+```
+
