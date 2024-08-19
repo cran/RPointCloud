@@ -16,6 +16,7 @@ getDelta <- function(mu) {
   val
 }
 
+## Reasonably robust fit to an exponential distribution
 ExpoFit  <- function(edata, resn = 200) {
   if (min(edata) < 0) {
     stop("Exponential duistributions cannot yield negative values.\n")
@@ -39,11 +40,11 @@ ExpoFit  <- function(edata, resn = 200) {
 }
 
 setOldClass("histogram")
-setClass("ExpoFit", slots = c(X0 = "numeric",
-                              pdf = "numeric",
+setClass("ExpoFit", slots = c(X0 = "numeric",     # xvals
+                              pdf = "numeric",    # pdf
                               mu = "numeric",
                               h0 = "histogram",
-                              edata = "numeric",
+                              edata = "numeric",  # statistics
                               lambda = "numeric"))
 
 setMethod("plot", c("ExpoFit", "missing"), function(x, y, ...) {
@@ -59,7 +60,15 @@ setMethod("plot", c("ExpoFit", "missing"), function(x, y, ...) {
   invisible(x)
 })
 
+############################################
+## Exponential funciton empirical Bayes
+setClass("EBexpo", slots = c(mu = "numeric",
+                             h0 = "histogram",
+                             lambda = "numeric"),
+         contains = "MultiWilcoxonTest")
+
 EBexpo <- function(edata, resn = 200) {
+  call <- match.call()
   if (inherits(edata, "ExpoFit")) {
     object <- edata
   } else {
@@ -74,60 +83,62 @@ EBexpo <- function(edata, resn = 200) {
   Y <- Y0[click]
   X <- X0[click]
   Z <- lm(Y ~ bs(X, df=5))
-  YP <- predict(Z, data.frame(X=X0)) # gives a warning that we are currently ignoring
+  YP <- predict(Z, data.frame(X=X0)) # gives a warning that we are ignoring
   unravel <- exp(YP + log(theo))
   val  <- new("EBexpo",
-              expo = object,
+              xvals = X0,
+              statistics = object@edata,
+              pdf = object@pdf,
               theoretical.pdf = theo,
-              unravel = unravel)
+              unravel = unravel,
+              groups = character(0),
+              call = call,
+              mu = object@mu,
+              lambda = object@lambda,
+              h0 = object@h0)
   val
 }
-
-setClass("EBexpo", slots = c(expo = "ExpoFit",
-                             theoretical.pdf = "numeric",
-                             unravel = "numeric"))
-
-setMethod("hist", "EBexpo", function(x, xlab="", ylab="Prob(Interesting | X)", main="", ...) {
-  top <- max(c(x@unravel, x@theoretical.pdf))
-  xvals <- x@expo@X0
-  hist(x@expo@edata, probability=TRUE, breaks=100, ylim=c(0, top),
-       xlim=c(min(xvals), max(xvals)), xlab=xlab, main=main)
-  lines(xvals, x@theoretical.pdf, col="red", lwd=2)
-  lines(xvals, x@unravel, col="blue", lwd=2)
-  legend("topright", c('Empirical', 'Theoretical'),
-         col=c("blue", "red"), lwd=2)
-  invisible(x)
-})
-
-
-### posterior probability of difference (p0 = prior)
-probDiff <- function(p0, object) {1 - p0*object@theoretical.pdf/object@unravel}
 
 ### maximum value of p0 that keeps posterior non-negative
 estPrior <- function(object, minp, maxp, resn = 1000) {
   sap <- sapply(sip <- seq(minp, maxp, length=resn),
-                function(x) min(probDiff(x, object)))
+                function(x) min(probDiff(object, x)))
   prior <- sip[max(which(sap >= 0))]
   prior
 }
 
 cutoff <- function(target, prior, object) {
-  pd <- probDiff(prior, object)
-  X0  <- object@expo@X0
-  X0[min(which(pd > target))]
+  cutoffSignificant(object, prior = prior, significance = target)
 }
-setMethod("plot", c("EBexpo", "missing"), function(x, prior, post = c(0.5, 0.8, 0.9), ...) {
-  cuts <- sapply(post, cutoff, prior = prior, object = x)
-  f1 <- function(i) {
-    lines(c(0, cuts[i], cuts[i]),
-          c(post[i], post[i], 0), col="gray")
+
+setMethod("plot", c("EBexpo", "missing"),
+          function(x,
+                   prior = 1,
+                   significance = c(0.5, 0.8, 0.9),
+                   ylim = c(-0.5, 1),
+                   xlab = "Duration",
+                   ylab = "Probability(Interesting | Duration)",
+                   ...) {
+  if (FALSE) {
+    cuts <- sapply(post, cutoff, prior = prior, object = x)
+    f1 <- function(i) {
+      lines(c(0, cuts[i], cuts[i]),
+            c(post[i], post[i], 0), col="gray")
+    }
+    pd <- probDiff(x, prior)
+    plot(x@xlabs, pd, type='l', lwd=2, xaxs='i',
+         xlab=xlab,
+         ylab=ylab)
+    abline(h = c(0, 1))
+    sapply(1:length(post), f1)
   }
-  pd <- probDiff(prior, x)
-  plot(x@expo@X0, pd, type='l', lwd=2, xaxs='i',
-       xlab="Duration",
-       ylab="Probability(Interesting | Duration)")
-  abline(h = c(0, 1))
-  sapply(1:length(post), f1)
+  callNextMethod(x, prior = prior, significance = significance, ylim = ylim,
+                 xlab = xlab, ylab = ylab, ...)
+  invisible(x)
+})
+
+setMethod("hist", "EBexpo", function(x, ...) {
+  callNextMethod(x, ...)
   invisible(x)
 })
 

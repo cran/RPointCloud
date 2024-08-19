@@ -1,6 +1,6 @@
 Package: RPointCloud
-Version: 0.6.2
-Date: 2024-06-24
+Version: 0.8.0
+Date: 2024-08-19
 Title: Visualizing Topological Loops and Voids
 Authors@R: c(person("Kevin R.", "Coombes", role = c("aut", "cre"),
                     email = "krc@silicovore.com"),
@@ -18,17 +18,17 @@ Description: Visualizations to explain the results of a topological
   that help explain the structures found in the Rips diagram. See McGee
   and colleagues (2024) <doi:10.1101/2024.05.16.593927>.
 Depends: R (>= 3.5)
-Imports: methods, graphics, stats, TDA, ClassDiscovery, Mercator, rgl,
-        splines, circlize
+Imports: methods, graphics, stats, TDA, ClassDiscovery, ClassComparison
+        (>= 3.3), Mercator, rgl, splines, circlize
 Suggests: knitr, rmarkdown, Polychrome, igraph, ape, PCDimension
 License: Artistic-2.0
 URL: http://oompa.r-forge.r-project.org/
 VignetteBuilder: knitr
 NeedsCompilation: no
-Packaged: 2024-06-24 15:20:25 UTC; KRC
+Packaged: 2024-08-19 17:17:07 UTC; KRC
 Author: Kevin R. Coombes [aut, cre],
   Jake Reed [aut],
   RB McGee [aut]
 Maintainer: Kevin R. Coombes <krc@silicovore.com>
 Repository: CRAN
-Date/Publication: 2024-06-25 11:41:08 UTC
+Date/Publication: 2024-08-19 21:20:02 UTC

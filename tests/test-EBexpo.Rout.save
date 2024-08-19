@@ -1,0 +1,37 @@
+
+R version 4.4.1 (2024-06-14 ucrt) -- "Race for Your Life"
+Copyright (C) 2024 The R Foundation for Statistical Computing
+Platform: x86_64-w64-mingw32/x64
+
+R is free software and comes with ABSOLUTELY NO WARRANTY.
+You are welcome to redistribute it under certain conditions.
+Type 'license()' or 'licence()' for distribution details.
+
+R is a collaborative project with many contributors.
+Type 'contributors()' for more information and
+'citation()' on how to cite R or R packages in publications.
+
+Type 'demo()' for some demos, 'help()' for on-line help, or
+'help.start()' for an HTML browser interface to help.
+Type 'q()' to quit R.
+
+> library(RPointCloud)
+> data(cytof)
+> diag <- AML10.node287.rips[["diagram"]]
+> persistence <- diag[, "Death"] - diag[, "Birth"]
+> d1 <- persistence[diag[, "dimension"] == 1]
+> eb <- EBexpo(d1, 200)
+> hist(eb)
+> plot(eb, prior = 0.77)
+> abline(h=0, col= "gray")
+> cutoffSignificant(eb, 0.77, 0.8)
+$low
+[1] 0.00116908
+
+$high
+[1] 0.2747338
+
+> 
+> proc.time()
+   user  system elapsed 
+   2.10    0.29    2.76 

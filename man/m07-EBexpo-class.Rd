@@ -2,8 +2,8 @@
 \docType{class}
 \alias{EBexpo-class}
 \alias{EBexpo}
-\alias{hist,EBexpo-method}
 \alias{plot,EBexpo,missing-method}
+\alias{hist,EBexpo-method}
 \alias{cutoff}
 \title{
 The \code{EBexpo} Class
@@ -19,32 +19,47 @@ The \code{EBexpo} Class
 \usage{
 EBexpo(edata, resn = 200)
 cutoff(target, prior, object)
-\S4method{hist}{EBexpo}(x, xlab="", ylab="Prob(Interesting | X)", main="", ...)
-\S4method{plot}{EBexpo,missing}(x, prior, post = c(0.5, 0.8, 0.9), ...)
+\S4method{plot}{EBexpo,missing}(x, prior = 1, significance = c(0.5, 0.8, 0.9),
+                 ylim = c(-0.5, 1), xlab = "Duration",
+                 ylab = "Probability(Interesting | Duration)", ...)
+\S4method{hist}{EBexpo}(x, ...)
 }
 \arguments{
   \item{edata}{A numeric vector; the observed data that we think comes
     mainly from an exponential distribution.}
   \item{resn}{A numeric vector; the resolution used to estimate a histogream.}
   \item{x}{An \code{EBexpo} object.}
-  \item{xlab}{A character vector; the label for the x-axis.}
-  \item{ylab}{A character vector; the label for the y-axis.}
-  \item{main}{A charcter vector; the plot title.}
-  \item{\dots}{The usual set of graphical parameters. }
   \item{prior}{A numeric vector of length 1; the prior probability of an
     observed data point coming from the known exponential distribution.}
-  \item{post}{The posterior probabilities to display in the plot.}
+  \item{significance}{A numeric vector with values between 0 and 1; the
+    target posterior probabiltiites.}
+  \item{ylim}{A numeric vector of length two.}
+  \item{xlab}{A character vector; the label for the x-axis.}
+  \item{ylab}{A character vector; the label for the y-axis.}
+  \item{\dots}{The usual set of graphical parameters. }
   \item{target}{The target posterior probability.}
   \item{object}{An \code{EBexpo} object.}
 }
 \section{Slots}{
   \describe{
-    \item{\code{expo}:}{An \code{\link{ExpoFit}} object.}
-    \item{\code{theoretical.pdf}:}{A numerical vector representing the
-      density funciton of the putative exponential distribution
-      component of the mixture.. }
-    \item{\code{unravel}:}{A numeric vector; the observed empirical
-      distribution of the complete mixture.}
+    \item{\code{xvals}:}{Inherited from
+      \code{\link[ClassComparison]{MultiWilcoxonTest}}} 
+    \item{\code{statistics}:}{Inherited from
+      \code{\link[ClassComparison]{MultiWilcoxonTest}}, Here, these are
+      the same a the \code{edata} slot from an \code{link{ExpoFit}} object.}
+    \item{\code{pdf}:}{Inherited from
+      \code{\link[ClassComparison]{MultiWilcoxonTest}}} 
+    \item{\code{theoretical.pdf}:}{Inherited from
+      \code{\link[ClassComparison]{MultiWilcoxonTest}}} 
+    \item{\code{unravel}:}{Inherited from
+      \code{\link[ClassComparison]{MultiWilcoxonTest}}} 
+    \item{\code{groups}:}{Inherited from
+      \code{\link[ClassComparison]{MultiWilcoxonTest}}, but not used}
+    \item{\code{call}:}{Inherited from
+      \code{\link[ClassComparison]{MultiWilcoxonTest}}} 
+    \item{\code{h0}:}{See \code{\link{ExpoFit}}}
+    \item{\code{lambda}:}{See \code{\link{ExpoFit}}}
+    \item{\code{mu}:}{See \code{\link{ExpoFit}}}
   }
 }
 \section{Methods}{
@@ -52,8 +67,8 @@ cutoff(target, prior, object)
     \item{plot(x, prior, post = c(0.5, 0.8, 0.9), ...):}{
       Produce a plot of a \code{EBexpo} object.
     }
-    \item{hist(x, xlab="", ylab="Prob(Interesting | X)", main="", ...):}{
-      Produce a histogram of teh observed distibution, with overlays.
+    \item{hist(x, ...):}{
+      Produce a histogram of the observed distibution, with overlays.
     }
   }
 }

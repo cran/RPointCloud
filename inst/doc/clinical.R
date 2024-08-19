@@ -149,7 +149,7 @@ hist(eb)
 plot(eb, prior = 0.56)
 par(opar)
 rm(opar)
-sum(d1 > cutoff(0.8, 0.56, eb)) # posterior 80%, prior 0.56
+sum(d1 > cutoffSignificant(eb, 0.8, 0.56)) # posterior 80%, prior 0.56
 sum(d1 > 0.065) # post 90%
 which(d1 > 0.047)
 which(d1 > 0.065)
