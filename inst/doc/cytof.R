@@ -20,8 +20,10 @@ suppressMessages( library("ape") )
 suppressPackageStartupMessages( library(circlize) )
 
 ## ----cytof------------------------------------------------------------------------------------
-data(cytof)
-ls()
+nenv <- new.env()
+data("cytof", envir = nenv)
+ls(nenv)
+attach(nenv)
 dim(AML10.node287)
 colnames(AML10.node287)
 amldist <- dist(AML10.node287)
@@ -192,15 +194,15 @@ annote <- LoopCircos(cyc1, angle.df, colorScheme)
 image(annote)
 
 ## ----echo = FALSE, eval = FALSE---------------------------------------------------------------
-#  M <-  matrix(U <- unlist(colorScheme), ncol = 2, byrow = TRUE)
-#  N <- matrix(1:12, nrow = 2)
-#  opar <- par(mai = c(0, 2, 0, 2))
-#  image(1:2, 1:6, N, col = U, xaxt = "n", yaxt = "n", xlab = "", ylab = "")
-#  mtext(sapply(colorScheme, names)[1,], side = 2 , at = 1:6, las = 2, line = 1, adj = 1)
-#  mtext(paste(sapply(colorScheme, names)[2,],
-#              colnames(angle.df), sep = ", "),
-#        side = 4 , at = 1:6, las = 2, line = 1, adj = 0)
-#  par(opar)
+# M <-  matrix(U <- unlist(colorScheme), ncol = 2, byrow = TRUE)
+# N <- matrix(1:12, nrow = 2)
+# opar <- par(mai = c(0, 2, 0, 2))
+# image(1:2, 1:6, N, col = U, xaxt = "n", yaxt = "n", xlab = "", ylab = "")
+# mtext(sapply(colorScheme, names)[1,], side = 2 , at = 1:6, las = 2, line = 1, adj = 1)
+# mtext(paste(sapply(colorScheme, names)[2,],
+#             colnames(angle.df), sep = ", "),
+#       side = 4 , at = 1:6, las = 2, line = 1, adj = 0)
+# par(opar)
 
 ## ----d2---------------------------------------------------------------------------------------
 d2 <- persistence[diag[, "dimension"] == 2]
@@ -222,5 +224,6 @@ support <- cycleSupport(vd, mds)
 
 ## ----cleanup------------------------------------------------------------------
 options(oopt)
-#rm(list = ls())
+detach("nenv")
+rm(nenv)
 

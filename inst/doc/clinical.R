@@ -20,8 +20,10 @@ suppressMessages( library("ape") )
 suppressPackageStartupMessages( library(circlize) )
 
 ## ----CLL--------------------------------------------------------------------------------------
-data(CLL)
-ls()
+nenv <- new.env()
+data("CLL", envir = nenv)
+ls(nenv)
+attach(nenv)
 dim(clinical)
 colnames(clinical)
 
@@ -218,32 +220,32 @@ rgl::rglwidget()
 #htmlwidgets::saveWidget(rglwidget(), "mywidget.html")
 
 ## ----eval = FALSE, echo = FALSE---------------------------------------------------------------
-#  mixed <- clinical[,"mutation.status"] + 2*clinical[,"CatB2M"] + 4*clinical[,"Matutes"]
-#  table(mixed)
-#  scheme <- c("cyan", "#cccccc", "blue", "magenta", "green", "orange", "black", "red")
-#  terp <- c("MHH", "UHH", "MLH", "ULH", "MHL", "UHL", "MLL", "ULL")
-#  names(scheme) <- terp
-#  swatchHue(scheme)
-#  mixedFeatures <- Feature(mixed, "Mixed", c("white", "black"), terp)
-#  mixedFeatures@colRamp <-  colorRamp2(0:7, scheme)
-#  plot(mixedFeatures, W, pch = 16, cex = 1.2)
-#  ag <- aggregate(mds, list(mixedFeatures@values), mean, na.rm = TRUE)[, 2:4]
-#  colnames(ag)  <- c("x", "y", "z")
-#  voidPlot(vd, mds, mixedFeatures)
-#  voidPlot(vd, mds)
-#  rgl::spheres3d(ag, color = scheme, radius = 0.05, alpha = 0.5)
-#  
-#  
-#  featMatutes <- Feature(clinical[,"Matutes"], "Matutes Score", c("blue", "orange"), c("Abnormal", "Normal"))
-#  featB2m <- Feature(clinical[,"CatB2M"], "Beta-2 microglobulin", c("green", "magenta"), c("High", "Low"))
+# mixed <- clinical[,"mutation.status"] + 2*clinical[,"CatB2M"] + 4*clinical[,"Matutes"]
+# table(mixed)
+# scheme <- c("cyan", "#cccccc", "blue", "magenta", "green", "orange", "black", "red")
+# terp <- c("MHH", "UHH", "MLH", "ULH", "MHL", "UHL", "MLL", "ULL")
+# names(scheme) <- terp
+# swatchHue(scheme)
+# mixedFeatures <- Feature(mixed, "Mixed", c("white", "black"), terp)
+# mixedFeatures@colRamp <-  colorRamp2(0:7, scheme)
+# plot(mixedFeatures, W, pch = 16, cex = 1.2)
+# ag <- aggregate(mds, list(mixedFeatures@values), mean, na.rm = TRUE)[, 2:4]
+# colnames(ag)  <- c("x", "y", "z")
+# voidPlot(vd, mds, mixedFeatures)
+# voidPlot(vd, mds)
+# rgl::spheres3d(ag, color = scheme, radius = 0.05, alpha = 0.5)
+# 
+# 
+# featMatutes <- Feature(clinical[,"Matutes"], "Matutes Score", c("blue", "orange"), c("Abnormal", "Normal"))
+# featB2m <- Feature(clinical[,"CatB2M"], "Beta-2 microglobulin", c("green", "magenta"), c("High", "Low"))
 
 ## ----eval = FALSE, echo = FALSE---------------------------------------------------------------
-#  ob <- Projection(vd, mds, mixedFeatures, span = 0.15)
-#  opar <- par(mfrow = c(1,2))
-#  plot(ob, cex = 1.5)
-#  image(ob, col = scheme)
-#  par(opar)
-#  rm(opar)
+# ob <- Projection(vd, mds, mixedFeatures, span = 0.15)
+# opar <- par(mfrow = c(1,2))
+# plot(ob, cex = 1.5)
+# image(ob, col = scheme)
+# par(opar)
+# rm(opar)
 
 ## ----fig13, fig.width = 9, fig.cap = .tag(13, "Planar projection of mutation status around void.")----
 ob <- Projection(vd, mds, featMU, span = 0.2)
@@ -255,5 +257,6 @@ rm(opar)
 
 ## ----cleanup------------------------------------------------------------------
 options(oopt)
-#rm(list = ls())
+detach("nenv")
+rm(nenv)
 

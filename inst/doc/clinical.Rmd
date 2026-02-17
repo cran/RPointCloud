@@ -41,8 +41,10 @@ suppressPackageStartupMessages( library(circlize) )
 ```
 Now we fetch the sample clinical data set that is included with the package.
 ```{r CLL}
-data(CLL)
-ls()
+nenv <- new.env()
+data("CLL", envir = nenv)
+ls(nenv)
+attach(nenv)
 dim(clinical)
 colnames(clinical)
 ```
@@ -350,5 +352,6 @@ rm(opar)
 
 ```{r cleanup}
 options(oopt)
-#rm(list = ls())
+detach("nenv")
+rm(nenv)
 ```

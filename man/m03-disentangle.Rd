@@ -12,12 +12,13 @@ specific coordinates into indices, allowing one to more easily plot
 different views of the data structures.
 }
 \usage{
-disentangle(rips, dataset)
+disentangle(rips, dataset, digits = 6)
 }
 \arguments{
   \item{rips}{A Rips \code{diagram} produced from a data matrix using
        the \code{TDA} package.}
   \item{dataset}{The original dataset used to create the \code{rips} object.}
+  \item{digits}{The number of digits to use when matching values.}
 }
 \value{
   Returns a Rips diagram nearly identical to the one that would be

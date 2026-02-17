@@ -41,8 +41,10 @@ suppressPackageStartupMessages( library(circlize) )
 ```
 Now we fetch the sample AML10.node287 data set that is included with the package.
 ```{r cytof}
-data(cytof)
-ls()
+nenv <- new.env()
+data("cytof", envir = nenv)
+ls(nenv)
+attach(nenv)
 dim(AML10.node287)
 colnames(AML10.node287)
 amldist <- dist(AML10.node287)
@@ -316,5 +318,6 @@ support <- cycleSupport(vd, mds)
 
 ```{r cleanup}
 options(oopt)
-#rm(list = ls())
+detach("nenv")
+rm(nenv)
 ```

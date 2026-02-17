@@ -1,6 +1,6 @@
 Package: RPointCloud
-Version: 0.8.0
-Date: 2024-08-19
+Version: 0.9.1
+Date: 2026-02-17
 Title: Visualizing Topological Loops and Voids
 Authors@R: c(person("Kevin R.", "Coombes", role = c("aut", "cre"),
                     email = "krc@silicovore.com"),
@@ -25,10 +25,10 @@ License: Artistic-2.0
 URL: http://oompa.r-forge.r-project.org/
 VignetteBuilder: knitr
 NeedsCompilation: no
-Packaged: 2024-08-19 17:17:07 UTC; KRC
+Packaged: 2026-02-17 19:36:47 UTC; KRC
 Author: Kevin R. Coombes [aut, cre],
   Jake Reed [aut],
   RB McGee [aut]
 Maintainer: Kevin R. Coombes <krc@silicovore.com>
 Repository: CRAN
-Date/Publication: 2024-08-19 21:20:02 UTC
+Date/Publication: 2026-02-17 21:10:08 UTC

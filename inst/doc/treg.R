@@ -21,20 +21,22 @@ library(PCDimension)
 library("ape")
 
 ## ----CLL--------------------------------------------------------------------------------------
-data(treg)
-ls()
+nenv <- new.env()
+data("treg", envir = nenv)
+ls(nenv)
+attach(nenv)
 
 ## ----echo=FALSE, eval = FALSE-----------------------------------------------------------------
-#  dmat <- distanceMatrix(dset, "pearson")
-#  picked <- Mercator::downsample(target = 250,
-#                                 distanceMat = as.matrix(dmat),
-#                                 cutoff = 1E-6)
-#  treg <- dset[, picked]
-#  tmat <- distanceMatrix(treg, "pearson")
-#  rm(picked)
-#  set.seed(84263)
-#  rip <- ripsDiag(tmat, 2, 0.7, "arbitrary", "Dionysus", TRUE)
-#  save(rip, treg, tmat, file = "treg.rda")
+# dmat <- distanceMatrix(dset, "pearson")
+# picked <- Mercator::downsample(target = 250,
+#                                distanceMat = as.matrix(dmat),
+#                                cutoff = 1E-6)
+# treg <- dset[, picked]
+# tmat <- distanceMatrix(treg, "pearson")
+# rm(picked)
+# set.seed(84263)
+# rip <- ripsDiag(tmat, 2, 0.7, "arbitrary", "Dionysus", TRUE)
+# save(rip, treg, tmat, file = "treg.rda")
 
 ## ----fig01, fig.width = 9, fig.cap = .tag(1, "The Rips barcode diagram from TDA.")------------
 diag <- rip[["diagram"]]
@@ -148,5 +150,6 @@ rm(opar)
 
 ## ----cleanup------------------------------------------------------------------
 options(oopt)
-#rm(list = ls())
+detach("nenv")
+rm(nenv)
 

@@ -2,7 +2,7 @@
 ## Copyright (C) 2022-4 Kevin R. Coombes, RB McGee, and Jake Reed
 ## LICENSE: Perl Artistic License 2.0
 
-indexCycles <- function(cycle, dataset) {
+indexCycles <- function(cycle, dataset, digits = 6) {
   L <- length(dim(cycle))
 ##  if (L == 2) return(cycle)
   ## Now we have to convert the data-set coordinates to indices
@@ -11,9 +11,9 @@ indexCycles <- function(cycle, dataset) {
   if (N1 != N2) {
     stop("Mismatched sizes. Dataset = ", N1, " and cycle = ", N2, "\n")
   }
-  input <- apply(dataset, 1, paste, collapse = "|")
+  input <- apply(round(dataset, digits), 1, paste, collapse = "|")
   dex <- apply(cycle, c(1, 2), function(X) {
-    check <- paste(X, collapse = "|")
+    check <- paste(round(X, digits), collapse = "|")
     w <- which(input == check)
     if (length(w) > 1) w <- w[1]
     w
@@ -21,19 +21,19 @@ indexCycles <- function(cycle, dataset) {
   return(dex)
 }
 
-lookup <- function(loc, dataset) {
-  input <- apply(dataset, 1, paste, collapse = "|")
+lookup <- function(loc, dataset, digits = 6) {
+  input <- apply(round(dataset, digits), 1, paste, collapse = "|")
   apply(loc, 1, function(L) {
-    1.0*which(input == paste(L, collapse = "|"))
+    1.0*which(input == paste(round(L, digits), collapse = "|"))
   })
 }
 
 
-disentangle <- function(rips, dataset) {
+disentangle <- function(rips, dataset, digits = 6) {
   cl <- rips$cycleLocation
-  fixed <- lapply(cl, indexCycles, dataset = dataset)
+  fixed <- lapply(cl, indexCycles, dataset = dataset, digits = digits)
   rips$cycleLocation <- fixed
-  rips$birthLocation <- lookup(rips$birthLocation, dataset)
-  rips$deathLocation <- lookup(rips$deathLocation, dataset)
+  rips$birthLocation <- lookup(rips$birthLocation, dataset, digits = digits)
+  rips$deathLocation <- lookup(rips$deathLocation, dataset, digits = digits)
   return(rips)
 }
